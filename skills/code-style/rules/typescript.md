@@ -152,12 +152,12 @@ The reader sees that the item is public where it is defined.
 
 ```ts
 // ✅
-export default function fetchData() {
+export default function fetchData(): Promise<Data> {
   // ...
 }
 
 // ❌
-function fetchData() {
+function fetchData(): Promise<Data> {
   // ...
 }
 
@@ -169,7 +169,7 @@ export default fetchData
 
 ```ts
 // ✅
-export default function UserProfile() {
+export default function UserProfile(): JSX.Element {
   // ...
 }
 
@@ -217,7 +217,7 @@ A bare `true` at the call site does not say what it turns on. Pass it as a named
 
 ```ts
 // ✅
-formatDate(date, { withTime: true })
+formatDate(date, { shouldIncludeTime: true })
 
 // ❌
 formatDate(date, true)
@@ -237,30 +237,37 @@ export default async function getUser(id: string) {
 }
 ```
 
-### TS16. Prefer a class when state and its methods belong together
+### TS16. Use a class for a long-lived object that holds state
+
+An API client, a cache, or a rate limiter keeps state across calls. Write it as a class, not a closure factory. Do not use classes for data or stateless helpers. Typed errors and React error boundaries are classes too.
 
 ```ts
 // ✅
-class Counter {
-  private count = 0
+class StripeClient {
+  private cache = new Map<string, Customer>()
 
-  increment() {
-    this.count += 1
-  }
+  constructor(private token: string) {}
 
-  get value() {
-    return this.count
+  async getCustomer(id: string): Promise<Customer> {
+    const cached = this.cache.get(id)
+    if (cached) return cached
+
+    const customer = await request({ token: this.token, path: `/customers/${id}` })
+    this.cache.set(id, customer)
+
+    return customer
   }
 }
 
 // ❌
-function createCounter() {
-  let count = 0
+function createStripeClient(token: string) {
+  const cache = new Map<string, Customer>()
 
-  return {
-    increment: () => (count += 1),
-    get: () => count,
+  async function getCustomer(id: string): Promise<Customer> {
+    // ...
   }
+
+  return { getCustomer }
 }
 ```
 
@@ -282,39 +289,33 @@ if (isUndefinedOrNull(options.limit)) {
 const limit = options.limit || DEFAULT_LIMIT
 ```
 
-### TS10. Return a result object for expected failures
+### TS10. Outside the server, return a result object for expected failures
 
-A function that can fail in a known way returns `{ ok: true, data }` or `{ ok: false, error }`. The caller must check `ok` before it can read `data`, so no failure goes unhandled. Use the repo's `Result` type when one exists. Throw only for bugs that should never happen: the app error handler catches those ([BE10](backend.md#be10-handle-errors-in-one-place)).
+In client code, scripts, and libraries, a function that can fail in a known way returns `{ ok: true, data }` or `{ ok: false, error }`. The caller must check `ok` before it can read `data`, so no failure goes unhandled. Use the repo's `Result` type when one exists.
+
+On the server, services throw typed errors and the app error handler maps them to status codes ([BE10](backend.md#be10-handle-errors-in-one-place)).
 
 ```ts
-// ✅
+// ✅ client
 type Result<T, E = string> = { ok: true; data: T } | { ok: false; error: E }
 
 async function getUser(id: string): Promise<Result<User>> {
   const response = await fetch(`/users/${id}`)
+  if (!response.ok) return { ok: false, error: "not-found" }
 
-  if (!response.ok) {
-    return { ok: false, error: "not-found" }
-  }
-
-  const user: User = await response.json()
+  const body = await response.json()
+  const user = UserSchema.parse(body)
 
   return { ok: true, data: user }
 }
 
 const result = await getUser(userID)
+if (!result.ok) return showError(result.error)
 
-if (!result.ok) {
-  return showError(result.error)
-}
-
-// ❌
+// ❌ client
 async function getUser(id: string) {
   const response = await fetch(`/users/${id}`)
-
-  if (!response.ok) {
-    throw new Error("User not found")
-  }
+  if (!response.ok) throw new Error("User not found")
 
   return response.json()
 }

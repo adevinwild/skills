@@ -6,22 +6,22 @@ These rules apply to React components, pages, and client state.
 
 ### FE1. Group component declarations by kind
 
-Order: hooks and data, state, derived values, handlers. Separate the groups with a blank line. See [G9](general.md#g9-group-declarations-by-kind).
+Order: hooks and data, state, derived values, handlers, effects ([FE8](#fe8-effects-go-last-named-by-intent)). Separate the groups with a blank line. See [G9](general.md#g9-group-declarations-by-kind).
 
 ```tsx
 // ✅
-export default function SearchPage() {
+export default function SearchPage(): JSX.Element {
   const router = useRouter()
   const { data: products } = useProducts()
 
   const [query, setQuery] = useState("")
-  const [isOpen, setIsOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const results = products.filter((product) => product.name.includes(query))
   const hasResults = results.length > 0
 
   function handleSelect(product: Product) {
-    setIsOpen(false)
+    setIsMenuOpen(false)
     router.push(`/products/${product.slug}`)
   }
 
@@ -29,11 +29,11 @@ export default function SearchPage() {
 }
 
 // ❌
-export default function SearchPage() {
+export default function SearchPage(): JSX.Element {
   const [query, setQuery] = useState("")
   const router = useRouter()
   const results = products.filter((product) => product.name.includes(query))
-  const [isOpen, setIsOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { data: products } = useProducts()
   // ...
 }
@@ -79,9 +79,13 @@ Put every `useEffect` and `useLayoutEffect` after the handlers, just before the 
 function handleSelect(product: Product) { /* ... */ }
 
 useEffect(function closeOnEscape() {
-  const onKey = (event: KeyboardEvent) => event.key === "Escape" && setIsOpen(false)
-  window.addEventListener("keydown", onKey)
-  return () => window.removeEventListener("keydown", onKey)
+  function handleKeyDown(event: KeyboardEvent) {
+    if (event.key === "Escape") setIsMenuOpen(false)
+  }
+
+  window.addEventListener("keydown", handleKeyDown)
+
+  return () => window.removeEventListener("keydown", handleKeyDown)
 }, [])
 
 // Focus follows the moved card after it remounts.
@@ -145,3 +149,40 @@ When a component grows a boolean prop for each variant, split it into small part
 ### FE7. Keep data and display apart
 
 A display component gets data through props and does not fetch. A container component or the page fetches and passes data down. Then you can reuse and test the display component alone.
+
+### FE9. Name handlers `handleX`, callback props `onX`
+
+```tsx
+// ✅
+type RowProps = { row: Row; onSelect: (id: string) => void }
+
+function Row({ row, onSelect }: RowProps): JSX.Element {
+  function handleClick() {
+    onSelect(row.id)
+  }
+
+  return <button onClick={handleClick}>{row.name}</button>
+}
+
+// ❌
+function Row({ row, selectRow }: RowProps): JSX.Element {
+  function onClick() {
+    selectRow(row.id)
+  }
+  // ...
+}
+```
+
+### FE10. Destructure props in the signature
+
+```tsx
+// ✅
+function OrderRow({ order, onSelect }: OrderRowProps): JSX.Element {
+  // ...
+}
+
+// ❌
+function OrderRow(props: OrderRowProps): JSX.Element {
+  // props.order, props.onSelect
+}
+```

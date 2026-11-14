@@ -6,7 +6,8 @@ description: Use when writing, editing, refactoring, or reviewing TypeScript or 
 # Code style
 
 House rules for code you write or touch. Do not restyle untouched code.
-When a rule conflicts with the repo's lint config or documented conventions, the repo wins.
+
+**The repo wins.** Its lint config, documented conventions, and the patterns its existing code already follows (naming, file names, exports, imports, folders) all beat these rules. Repo has `userId` and `UserCard.tsx`? Write `userId` and `OrderCard.tsx`. Apply a house rule only where the repo has no pattern.
 
 ## Load the rules
 
@@ -37,24 +38,29 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 
 **General (G)**
 - G1 kebab-case file names, including components: `order-history.tsx`
-- G2 descriptive names; single letters only for loop indexes, not `o`, `e`, `r` in callbacks
+- G2 descriptive names; single letters only for loop indexes, `T`, and framework names like Hono's `c`
 - G3 abbreviations in capitals: `userID`, `PDPImages`
 - G4 user-facing strings in sentence case
 - G18 booleans start with `is`/`has`/`should` + subject: `isMenuOpen`, not `open`
-- G5 name every literal: `MAX_RETRIES = 3`; derive dependents from it
+- G5 name every number (`MAX_RETRIES = 3`) and every string used in 2+ places; obvious `0`, `1`, `""` exempt
 - G6 name each `await` result on its own line
 - G13 independent async steps in `Promise.all`
-- G14 new values with spread, no mutation, no one-line spread helpers
+- G14 new values with spread, no mutation of received values, no one-line spread helpers
+- G22 a lookup that finds nothing returns `null`
 - G15 one ternary for a two-way return; never chain
 - G16 lookup `Record<Key, Value>`, not `switch` or chained ternaries
 - G17 `filter`/`map`/`reduce`, not loops with accumulators
+- G21 guard clause with one `return`/`throw` on one line, no braces
 - G7 order statements by data flow; blank line between groups
 - G8 label a group only when it is a separate flow
 - G9 group declarations by kind
-- G10 blank line before `return`
+- G10 blank line between declarations and the `return`
 - G19 no heading comments; shared constants in `constants.ts`
+- G20 file order: imports, types, constants, helpers, main export last
+- G24 feature folders (frontend), domain/module folders (backend)
 - G11 comments only give a reason
 - G12 delete tests that check nothing a human would check
+- G23 tests in `__tests__/`, `describe` + `it("should ...")`
 
 **TypeScript (TS)**
 - TS1 no semicolons (unless repo config requires them)
@@ -70,12 +76,13 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 - TS7 more than 3 arguments: one destructured object
 - TS8 options object, not a boolean argument
 - TS15 explicit return type on exported functions
-- TS16 class when state and methods belong together
+- TS16 class for long-lived stateful objects (clients, caches); not for data or stateless helpers
 - TS9 `??` for defaults, not `||`
-- TS10 expected failures return `{ ok, data | error }`; throw only for bugs
+- TS10 outside the server, expected failures return `{ ok, data | error }`; server code throws typed errors (BE10)
 
 **Backend (BE)**
 - BE1 validate body, query, params, headers with the repo's schema validator; no hand `if` checks
+- BE13 `const CreateOrderSchema`, `type CreateOrder = z.infer<...>`
 - BE2 validate in middleware, same process
 - BE3 400 with each field and reason, via the validator's formatter
 - BE4 correct status code; never 200 with an error
@@ -84,19 +91,22 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 - BE7 related writes in one transaction; no external calls inside it
 - BE8 idempotency key or unique constraint when a retry can harm
 - BE9 list each failure point; slow side effects (email, sync) go to a queue
-- BE10 one app error handler; no per-route `try/catch` to log and 500
+- BE10 services throw typed errors (`NotFoundError`); one `onError` maps them to status codes; no per-route `try/catch`
 - BE11 one structured log event per request; no `console.log`
 - BE12 propagate trace context; spans around external work
+- BE14 one handler per file via `createFactory().createHandlers`; routes file only wires paths
 
 **Frontend (FE)**
 - FE1 component order: hooks/data, state, derived, handlers, effects, `return`
-- FE8 effects last, named: `useEffect(function closeOnEscape() {...})`
+- FE8 effects last, named: `useEffect(function closeOnEscape() {...})` or a one-line comment above
 - FE2 error boundary around each part that loads data or can throw
 - FE3 loading, empty, and error states for each data view
 - FE4 derive during render, never via an effect
 - FE5 parallel fetches, lazy heavy parts, state near its user; measure before memo
 - FE6 compose with children, not boolean variant props
 - FE7 display components take props; containers fetch
+- FE9 `handleX` inside, `onX` callback props
+- FE10 destructure props in the signature
 
 ## Common misses
 
@@ -110,7 +120,7 @@ From agents working without this skill:
 | Retry `3` times, `500` ms as bare literals | G5 |
 | Email and ERP sync awaited in the request | BE9 |
 | `console.error` on failure | BE11 |
-| `throw` when a user is not found | TS10 |
+| Route checks a failure and returns 404 itself | BE10 |
 | `const getLabel = () =>`, named exports for the main item | TS4, TS6 |
 | `OrderHistory.tsx`, `userId`, `open`, `(o) =>` | G1, G3, G18, G2 |
 | Effect at the top of the component, anonymous | FE1, FE8 |

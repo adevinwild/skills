@@ -11,7 +11,7 @@ These rules apply to all code.
 
 ### G2. Use descriptive names
 
-A name tells the reader what the value is. Single letters are only for loop indexes.
+A name tells the reader what the value is. Single letters are only for loop indexes, generic type parameters (`T`), and names a framework fixes (Hono's `c`).
 
 ```ts
 // ✅
@@ -66,9 +66,9 @@ const isOpen = true
 
 ## Values
 
-### G5. Give every literal value a name
+### G5. Name every number, and every string used in more than one place
 
-A literal in the logic hides its meaning. Name it once. Calculate dependent values from that name, so one change updates all of them.
+A number in the logic hides its meaning. Name it once. Calculate dependent values from that name, so one change updates all of them. A string that appears once and reads clearly stays inline (`"Escape"`, `"free"`, status codes like `201`). Name it when a second place uses it.
 
 ```ts
 // ✅
@@ -76,14 +76,10 @@ const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 500
 const MAX_WAIT_MS = MAX_RETRIES * RETRY_DELAY_MS
 
-if (attempt > MAX_RETRIES) {
-  throw new Error("Too many retries")
-}
+if (attempt > MAX_RETRIES) throw new Error("Too many retries")
 
 // ❌
-if (attempt > 3) {
-  throw new Error("Too many retries")
-}
+if (attempt > 3) throw new Error("Too many retries")
 
 const maxWait = 1500
 ```
@@ -136,6 +132,24 @@ items.push(item)
 // ❌
 function addItem(items: Item[], item: Item) {
   return [...items, item]
+}
+```
+
+State that a long-lived object owns (a cache inside a client, [TS16](typescript.md#ts16-use-a-class-for-a-long-lived-object-that-holds-state)) is not a received value. It can change in place.
+
+### G22. Return `null` when a lookup finds nothing
+
+`null` means "looked, found nothing". `undefined` means "not set" ([TS13](typescript.md#ts13-use--for-a-field-that-can-be-missing)).
+
+```ts
+// ✅
+function findUser(id: string): User | null {
+  return users.find((user) => user.id === id) ?? null
+}
+
+// ❌
+function findUser(id: string): User | undefined {
+  return users.find((user) => user.id === id)
 }
 ```
 
@@ -213,6 +227,21 @@ for (const order of orders) {
 
 Use `for...of` only when each step must `await` the one before, or the loop must `break`.
 
+### G21. Write a guard clause on one line
+
+When an `if` only exits early with one `return` or `throw`, write it on one line without braces. Use braces when the body has more than one statement.
+
+```ts
+// ✅
+if (!user) return null
+if (isPending) return <OrdersSkeleton />
+
+// ❌
+if (!user) {
+  return null
+}
+```
+
 ## Layout
 
 ### G7. Order statements by data flow
@@ -251,8 +280,10 @@ A label names a step that a reader can skip as one unit. Do not label each group
 // ✅
 async function syncOrders() {
   // Pull
-  const remoteOrders = await api.listOrders()
-  const localOrders = await db.orders.findMany()
+  const [remoteOrders, localOrders] = await Promise.all([
+    api.listOrders(),
+    db.orders.findMany(),
+  ])
 
   // Reconcile
   const localIDs = new Set(localOrders.map((order) => order.id))
@@ -312,6 +343,48 @@ let attempts = 0
 const MAX_RETRIES = 3
 ```
 
+### G20. Put helpers above the main export
+
+File order: imports, types, constants, private helpers, then the main export last.
+
+```ts
+// ✅
+type OrderListProps = { orders: Order[] }
+
+const MAX_ROWS = 10
+
+function toRows(orders: Order[]): Row[] {
+  return orders.slice(0, MAX_ROWS).map((order) => ({ id: order.id, label: order.name }))
+}
+
+export default function OrderList({ orders }: OrderListProps): JSX.Element {
+  const rows = toRows(orders)
+
+  return <Table rows={rows} />
+}
+
+// ❌ main export first, helpers below
+export default function OrderList({ orders }: OrderListProps): JSX.Element { /* ... */ }
+
+function toRows(orders: Order[]): Row[] { /* ... */ }
+```
+
+### G24. Group files by feature
+
+Frontend: one folder per feature, shared UI in a root folder. Backend: one folder per domain or module. When the repo already has a layout, follow it.
+
+```
+src/
+  features/
+    orders/
+      order-list.tsx
+      use-orders.ts
+      constants.ts
+      __tests__/
+  ui/
+    button.tsx
+```
+
 ## Comments and tests
 
 ### G11. Keep only comments that give a reason
@@ -334,7 +407,7 @@ A test must check behavior that can break. Delete tests that only repeat the imp
 
 ```ts
 // ✅
-it("applies the member discount to the subtotal", () => {
+it("should apply the member discount to the subtotal", () => {
   expect(getTotal(cart, member)).toBe(90)
 })
 
@@ -346,5 +419,23 @@ it("is a function", () => {
 it("returns the mocked value", () => {
   vi.mocked(getDiscount).mockReturnValue(10)
   expect(getDiscount()).toBe(10)
+})
+```
+
+### G23. Put tests in `__tests__/`, name cases with `should`
+
+Tests live in a `__tests__/` folder next to the code. Group by subject with `describe`. Each case reads as `it("should ...")`.
+
+```ts
+// ✅ src/orders/__tests__/get-total.test.ts
+describe("getTotal", () => {
+  it("should apply the member discount", () => {
+    // ...
+  })
+})
+
+// ❌ src/orders/get-total.test.ts
+test("discount works", () => {
+  // ...
 })
 ```

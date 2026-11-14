@@ -13,7 +13,7 @@ Make schemas strict: set types, lengths, ranges, and formats. Reject unknown fie
 
 ```ts
 // ✅
-const createOrderSchema = z.strictObject({
+const CreateOrderSchema = z.strictObject({
   productID: z.uuid(),
   quantity: z.int().min(1).max(MAX_ORDER_QUANTITY),
   email: z.email(),
@@ -25,13 +25,33 @@ if (!body.productID || typeof body.quantity !== "number") {
 }
 ```
 
+### BE13. Name a schema `PascalSchema`, its type without the suffix
+
+```ts
+// ✅
+const CreateOrderSchema = z.strictObject({ /* ... */ })
+
+type CreateOrder = z.infer<typeof CreateOrderSchema>
+
+// ❌
+const createOrderSchema = z.strictObject({ /* ... */ })
+
+type CreateOrderInput = z.infer<typeof createOrderSchema>
+```
+
 ### BE2. Validate in middleware, in the same process
 
 Run validation in middleware before the handler. The handler then gets typed, valid data. Do not call another service to validate. A network hop adds latency to each request and increases TTFB.
 
 ```ts
 // ✅
-app.post("/orders", zValidator("json", createOrderSchema, sendValidationError), createOrder)
+export default factory.createHandlers(
+  zValidator("json", CreateOrderSchema, sendValidationError),
+  async (c) => {
+    const input = c.req.valid("json")
+    // ...
+  },
+)
 
 // ❌
 app.post("/orders", async (c) => {
@@ -53,9 +73,7 @@ When validation fails, return `400`. List each failed field and the reason. Use 
 ```ts
 // ✅
 function sendValidationError(result: ValidationResult, c: Context) {
-  if (result.success) {
-    return
-  }
+  if (result.success) return
 
   const { fieldErrors } = z.flattenError(result.error)
 
@@ -132,10 +150,7 @@ When a client can send the same request again (payments, orders, emails), accept
 // ✅
 const idempotencyKey = c.req.header("Idempotency-Key")
 const storedResponse = await getStoredResponse(idempotencyKey)
-
-if (storedResponse) {
-  return c.json(storedResponse.body, storedResponse.status)
-}
+if (storedResponse) return c.json(storedResponse.body, storedResponse.status)
 ```
 
 A unique constraint in the database is often enough. Use it before you build a key store.
@@ -171,14 +186,22 @@ To send a message only when the write succeeds, use an outbox table in the same 
 
 ### BE10. Handle errors in one place
 
-Use one error handler for the app. Map known errors to status codes there. Do not wrap each handler in `try/catch` only to log and return `500`.
+Services throw typed errors for expected failures. One app error handler maps them to status codes. Handlers do not check for failures or wrap work in `try/catch` only to log and return `500`.
 
 ```ts
-// ✅
+// ✅ errors.ts
+class NotFoundError extends Error {}
+class ConflictError extends Error {}
+
+// create-order.ts
+const order = await createOrder(input) // throws NotFoundError, ConflictError
+
+return c.json(order, 201)
+
+// app.ts
 app.onError((error, c) => {
-  if (error instanceof NotFoundError) {
-    return c.json({ error: error.message }, 404)
-  }
+  if (error instanceof NotFoundError) return c.json({ error: error.message }, 404)
+  if (error instanceof ConflictError) return c.json({ error: error.message }, 409)
 
   logger.error({ error, requestID: c.get("requestID") })
 
@@ -217,3 +240,33 @@ Do not log secrets, tokens, passwords, or full payment data.
 ### BE12. Trace calls across services
 
 Propagate the trace context to each outgoing call. Add a span around slow or external work: database queries, HTTP calls, and queue sends. Use OpenTelemetry or the tracing tool in the repo. If the repo has none, suggest one and do not add it without approval.
+
+## Structure
+
+### BE14. Write each route handler in its own file with `createFactory`
+
+The route file only wires paths. `createHandlers` keeps `c.req.valid()` typed.
+
+```ts
+// ✅ factory.ts
+export default createFactory<AppEnv>()
+
+// create-order.ts
+export default factory.createHandlers(
+  zValidator("json", CreateOrderSchema, sendValidationError),
+  async (c) => {
+    const input = c.req.valid("json")
+    const order = await createOrder(input)
+
+    return c.json(order, 201)
+  },
+)
+
+// routes.ts
+app.post("/orders", ...createOrderHandlers)
+
+// ❌ handler logic inline in routes.ts
+app.post("/orders", zValidator("json", CreateOrderSchema), async (c) => {
+  // 40 lines
+})
+```
