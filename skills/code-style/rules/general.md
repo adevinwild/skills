@@ -103,7 +103,7 @@ The same applies to deep nested calls that are not async. If a reader must read 
 
 ### G13. Run independent async steps in parallel
 
-When two async steps do not need each other's result, start them together with `Promise.all`. Await in sequence only when a step uses the result of the one before.
+When two async steps do not need each other's result, start them together with `Promise.all`. Await in sequence when a step uses the result of the one before, or when order matters: writes inside a transaction, ordered writes, or calls to a rate-limited API.
 
 ```ts
 // ✅
@@ -303,10 +303,6 @@ function getTotal(cart: Cart) {
 }
 ```
 
-### G9. Group declarations by kind
-
-Keep declarations of the same kind together, for example constants, state, derived values, and handlers. Separate the groups with a blank line. See [FE](frontend.md) for a component example.
-
 ### G10. Separate declarations from the `return`
 
 ```ts
@@ -401,9 +397,9 @@ const amount = event.amount / CENTS_PER_UNIT
 const amount = event.amount / 100
 ```
 
-### G12. Delete tests that check nothing a human would check
+### G12. Do not write tests that check nothing a human would check
 
-A test must check behavior that can break. Delete tests that only repeat the implementation or test the language.
+A test must check behavior that can break. Do not write tests that only repeat the implementation or test the language. Remove existing ones only when the task touches them.
 
 ```ts
 // ✅

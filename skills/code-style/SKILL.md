@@ -44,7 +44,7 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 - G18 booleans start with `is`/`has`/`should` + subject: `isMenuOpen`, not `open`
 - G5 name every number (`MAX_RETRIES = 3`) and every string used in 2+ places; obvious `0`, `1`, `""` exempt
 - G6 name each `await` result on its own line
-- G13 independent async steps in `Promise.all`
+- G13 independent async steps in `Promise.all`; sequence when order matters (transactions, rate limits)
 - G14 new values with spread, no mutation of received values, no one-line spread helpers
 - G22 a lookup that finds nothing returns `null`
 - G15 one ternary for a two-way return; never chain
@@ -53,13 +53,12 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 - G21 guard clause with one `return`/`throw` on one line, no braces
 - G7 order statements by data flow; blank line between groups
 - G8 label a group only when it is a separate flow
-- G9 group declarations by kind
 - G10 blank line between declarations and the `return`
 - G19 no heading comments; shared constants in `constants.ts`
 - G20 file order: imports, types, constants, helpers, main export last
 - G24 feature folders (frontend), domain/module folders (backend)
 - G11 comments only give a reason
-- G12 delete tests that check nothing a human would check
+- G12 no tests that check nothing a human would check
 - G23 tests in `__tests__/`, `describe` + `it("should ...")`
 
 **TypeScript (TS)**
@@ -107,6 +106,7 @@ A task often dictates a signature or props: "takes `userId, includeCancelled, cu
 - FE7 display components take props; containers fetch
 - FE9 `handleX` inside, `onX` callback props
 - FE10 destructure props in the signature
+- FE11 each query in a `useX` hook (`use-x.ts`); reused or bulky state/effects too
 
 ## Common misses
 

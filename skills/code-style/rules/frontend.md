@@ -6,7 +6,7 @@ These rules apply to React components, pages, and client state.
 
 ### FE1. Group component declarations by kind
 
-Order: hooks and data, state, derived values, handlers, effects ([FE8](#fe8-effects-go-last-named-by-intent)). Separate the groups with a blank line. See [G9](general.md#g9-group-declarations-by-kind).
+Order: hooks and data, state, derived values, handlers, effects ([FE8](#fe8-effects-go-last-named-by-intent)). Separate the groups with a blank line.
 
 ```tsx
 // ✅
@@ -149,6 +149,23 @@ When a component grows a boolean prop for each variant, split it into small part
 ### FE7. Keep data and display apart
 
 A display component gets data through props and does not fetch. A container component or the page fetches and passes data down. Then you can reuse and test the display component alone.
+
+### FE11. Move data and effect logic into a custom hook
+
+Wrap each query in a hook that owns its key and fetch function. Move state and effects that are reused, or that crowd a component, into a hook too. Name it `useX` in `use-x.ts`. Return an object when it returns more than one value.
+
+```ts
+// ✅ use-orders.ts
+export default function useOrders(userID: string): UseQueryResult<Order[]> {
+  return useQuery({
+    queryKey: ["orders", userID],
+    queryFn: () => getOrders(userID),
+  })
+}
+
+// ❌ inline in each component, keys drift apart
+const { data } = useQuery({ queryKey: ["user-orders", userID], queryFn: () => getOrders(userID) })
+```
 
 ### FE9. Name handlers `handleX`, callback props `onX`
 
